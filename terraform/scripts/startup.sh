@@ -1,55 +1,3 @@
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "6.8.0"
-    }
-  }
-}
-
-provider "google" {
-  project = "evaluation-deployment"
-  region  = "us-central1"
-  zone    = "us-central1-c"
-}
-
-# Create VPC Network
-resource "google_compute_network" "vpc_network" {
-  name = "terraform-network"
-}
-
-# Create Firewall Rule to Allow SSH
-resource "google_compute_firewall" "allow-ssh" {
-  name    = "allow-ssh"
-  network = google_compute_network.vpc_network.self_link
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
-  }
-  source_ranges = ["0.0.0.0/0"]
-}
-
-# No need for a local file resource - we'll embed the script directly in metadata
-
-# Create VM Instance
-resource "google_compute_instance" "vm_instance" {
-  name         = "playwright-vm"
-  machine_type = "e2-medium"
-  zone         = "us-central1-c"
-
-  boot_disk {
-    initialize_params {
-      image = "ubuntu-os-cloud/ubuntu-2204-lts"
-    }
-  }
-
-  network_interface {
-    network = google_compute_network.vpc_network.name
-    access_config {}
-  }
-
-  # Startup script to setup environment and run the test
-  metadata_startup_script = <<-EOT
 #!/bin/bash
 # Log startup progress
 exec > >(tee -i /var/log/startup-script.log)
@@ -107,7 +55,7 @@ def run():
         
         # Take a screenshot
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        screenshot_path = f"/results/google_imdb_search_{timestamp}.png"
+        screenshot_path = f"/home/ubuntu/google_imdb_search_{timestamp}.png"
         page.screenshot(path=screenshot_path)
         print(f"Screenshot saved to: {screenshot_path}")
         
@@ -136,12 +84,3 @@ cd /home/ubuntu
 python /home/ubuntu/playwright_script.py
 
 echo "Startup script completed at $(date)"
-EOT
-
-  # No dependencies needed now
-}
-
-# Output the external IP for SSH access
-output "vm_external_ip" {
-  value = google_compute_instance.vm_instance.network_interface[0].access_config[0].nat_ip
-}
