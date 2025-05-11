@@ -1,0 +1,21 @@
+[Unit]
+Description=FastAPI Service
+After=network.target
+
+[Service]
+# Set the environment variables through an EnvironmentFile
+EnvironmentFile=/etc/fastapi.env
+
+# User and group to run the service
+User=${USER}
+
+# Working directory and command to start the FastAPI app
+WorkingDirectory=/home/${USER}/NeuroShift
+ExecStart=/bin/bash -c 'source /home/${USER}/NeuroShift/.venv/bin/activate && exec python3 -m uvicorn main:app --host 0.0.0.0 --port 8000'
+
+# Restart settings
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+

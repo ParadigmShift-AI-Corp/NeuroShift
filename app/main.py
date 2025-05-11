@@ -4,15 +4,17 @@ from fastapi.middleware.cors import CORSMiddleware
 import subprocess
 import time
 import threading
-import asyncio
+import asyncio, os
+from dotenv import load_dotenv
 
+load_dotenv()
 from fastapi.responses import StreamingResponse
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Adjust to your frontend URL
+    allow_origins=["http://localhost:3000", "https://paradigm-shift.ai"],  # Adjust to your frontend URL
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -48,7 +50,8 @@ def destroy_terraform_command(userid: str):
 
         for line in iter(process.stdout.readline, ''):
             # Save logs to a global dictionary
-            deployments[userid].append(line)
+            print(clean_log(line))
+            deployments[userid].append(clean_log(line))
             time.sleep(0.1)
 
         subprocess.run(f"terraform workspace select default", shell=True, cwd=base_dir, capture_output=True, text=True)
@@ -60,6 +63,7 @@ def destroy_terraform_command(userid: str):
         if process.returncode != 0:
             deployments[userid].append(f"Error: Command failed with exit code {process.returncode}\n")
     except Exception as e:
+        print(f"Error during destroy: {e}")
         deployments[userid].append(f"Exception: {str(e)}\n")
 
 def run_terraform_command(userid: str):
@@ -99,6 +103,7 @@ def run_terraform_command(userid: str):
             deployments[userid].append("[DONE]")
 
     except Exception as e:
+        print(f"Error during deployment: {e}")
         deployments[userid].append(f"Exception: {str(e)}\n")
         deployments[userid].append("[DONE]")
 
@@ -166,3 +171,7 @@ async def event_stream():
 @app.get("/stream")
 async def stream():
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host=os.getenv('HOST'), port=int(os.getenv('PORT')))
