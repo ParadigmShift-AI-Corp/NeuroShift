@@ -89,7 +89,7 @@ import datetime
 
 def run():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         
         # Navigate to Google
@@ -98,11 +98,11 @@ def run():
         
         # Search for IMDB
         print("Searching for IMDB...")
-        page.fill('input[name="q"]', 'imdb')
+        page.fill('textarea[name="q"]', 'imdb')
         page.keyboard.press('Enter')
         
         # Wait for results
-        page.wait_for_selector('h3')
+        # page.wait_for_selector('h3')
         print("Search results loaded")
         
         # Take a screenshot
