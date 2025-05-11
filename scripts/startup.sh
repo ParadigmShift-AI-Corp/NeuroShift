@@ -1,24 +1,41 @@
 #!/bin/bash
+# Log startup progress
+exec > >(tee -i /var/log/startup-script.log)
+exec 2>&1
+echo "Starting setup script at $(date)"
 
-# Update packages
+# Update package lists
 sudo apt-get update -y
 
-# Install necessary packages
-sudo apt-get install -y wget curl git unzip python3 python3-pip
+# Install required dependencies
+sudo apt-get install -y wget unzip curl python3 python3-pip python3-venv
 
 # Install Chrome
-wget -q -O google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-sudo apt-get install -y ./google-chrome.deb
-rm google-chrome.deb
+echo "Installing Chrome..."
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
 
-# Install Node.js (required for Playwright dependencies)
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs
+# Create virtual environment
+echo "Creating Python virtual environment..."
+python3 -m venv /home/ubuntu/playwright_venv
 
-# Install Playwright
-pip3 install playwright
-playwright install --with-deps
+# Activate virtual environment and install packages
+echo "Installing packages in virtual environment..."
+source /home/ubuntu/playwright_venv/bin/activate
+pip install --upgrade pip
+pip install playwright requests
+python -m playwright install chromium
 
-# Confirm installation
-google-chrome --version > /home/ubuntu/chrome_version.txt
-python3 -m playwright --version > /home/ubuntu/playwright_version.txt
+# Create Python script
+echo "Creating Playwright script..."
+mkdir -p /home/ubuntu
+
+chmod +x /home/ubuntu/playwright_script.py
+
+# Run the script
+echo "Running Playwright script at $(date)..."
+source /home/ubuntu/playwright_venv/bin/activate
+cd /home/ubuntu
+python /home/ubuntu/playwright_script.py
+
+echo "Startup script completed at $(date)"

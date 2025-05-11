@@ -4,14 +4,14 @@ After=network.target
 
 [Service]
 # Set the environment variables through an EnvironmentFile
-EnvironmentFile=/etc/fastapi.env
+EnvironmentFile=/home/${USER}/NeuroShift/.env
 
 # User and group to run the service
 User=${USER}
 
 # Working directory and command to start the FastAPI app
 WorkingDirectory=/home/${USER}/NeuroShift
-ExecStart=/bin/bash -c 'source ${WorkingDirectory}/.venv/bin/activate && exec python3 main.py'
+ExecStart=/bin/bash -c 'source /home/${USER}/NeuroShift/.venv/bin/activate && exec python3 main.py'
 
 # Restart settings
 Restart=always
