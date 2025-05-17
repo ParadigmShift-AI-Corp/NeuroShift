@@ -7,6 +7,7 @@ import tempfile
 import json
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from browser_use import Agent
 from browser_use import Browser
 import argparse
@@ -188,7 +189,16 @@ if __name__ == "__main__":
     OPENAI_API_KEY = "OPENAI_API_KEY"
     openai_api_key_value = os.getenv(OPENAI_API_KEY, '')
     BUCKET_NAME = os.getenv("BUCKET_NAME", '')
-    llm = ChatOpenAI(model=MODEL, api_key=SecretStr(openai_api_key_value))
+    # llm = ChatOpenAI(model=MODEL, api_key=SecretStr(openai_api_key_value))
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash",
+        temperature=0,
+        max_tokens=None,
+        timeout=None,
+        max_retries=2,
+        api_key=SecretStr(os.getenv("GOOGLE_API_KEY", ''))
+    # other params...
+    )
     parser = argparse.ArgumentParser(description="Run BrowserAgent with given parameters.")
     parser.add_argument("--jobId", required=True, help="Unique job ID")
     parser.add_argument("--tasks", required=True, help="Tasks in JSON format (e.g., '[{\"taskId\": \"1\", \"task\": \"goto netflix.com\"}]')")
@@ -200,7 +210,7 @@ if __name__ == "__main__":
 
     # Parse tasks from JSON string
     try:
-        tasks = json.loads(args.tasks.replace("'", "\""))
+        tasks = json.loads(args.tasks)
     except json.JSONDecodeError:
         print("Error: Invalid JSON format for tasks.")
         exit(1)
@@ -216,7 +226,7 @@ if __name__ == "__main__":
     # print(args.tasks)
 
     asyncio.run(BrowserAgent(
-        tasks=json.loads(args.tasks),
+        tasks=tasks,
         bucket_name=BUCKET_NAME,
         jobId=args.jobId,
         model=MODEL,

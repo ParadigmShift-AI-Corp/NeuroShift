@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio, os, threading
+from utils.clean_log import clean_log
 from utils.destroy import destroy_terraform_command
 from utils.run import job
 from dotenv import load_dotenv
@@ -103,17 +104,11 @@ async def web(request: Request):
     if not tasks:
         raise HTTPException(status_code=400, detail="Missing tasks")
 
-    # Ensure tasks are a valid JSON string
-    try:
-        tasks_json = str(tasks).replace("'", "\"")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid task format: {e}")
-
     # Prepare command for subprocess
     cmd = [
         "xvfb-run", "python", "app/agents/browseruse.py",
         "--jobId", jobId,
-        "--tasks", tasks_json,
+        "--tasks", tasks,
         "--user", userid
     ]
 
@@ -128,7 +123,7 @@ async def web(request: Request):
         )
         if process.stdout is not None:
             async for line in process.stdout:
-                deployments[userid].append(line.strip())
+                deployments[userid].append(clean_log(line.decode().strip()))
         await process.wait()
         deployments[userid].append("[DONE]")
 
