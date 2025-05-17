@@ -1,10 +1,14 @@
+from asyncio import subprocess
+import shutil
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio, os, threading
 from utils.destroy import destroy_terraform_command
 from utils.run import job
 from dotenv import load_dotenv
+from screenshot.generate import TimestampExtractor, VideoFrameExtractor
+from agents.browseruse import BrowserAgent
 
 load_dotenv()
 
@@ -12,7 +16,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://paradigm-shift.ai"],  # Adjust to your frontend URL
+    allow_origins=["http://localhost:3000", "https://paradigm-shift.ai", "https://www.paradigm-shift.ai"],  # Adjust to your frontend URL
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -35,6 +39,7 @@ async def deploy(request: Request):
 async def stream_logs(userid: str):
     async def log_generator():
         while True:
+            log = None  # Initialize log with a default value
             if userid in deployments and deployments[userid]:
                 while deployments[userid]:
                     log = deployments[userid].pop(0)
@@ -78,12 +83,96 @@ async def event_stream():
     for i in range(1, 11):
         # Simulate data generation with a delay
         yield f"data: Message {i}\n\n"
-        asyncio.sleep(1)
+        await asyncio.sleep(1)
 
 @app.get("/stream")
 async def stream():
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
+@app.post("/webrun")
+async def web(request: Request):
+    data = await request.json()
+    jobId = data.get("jobId")
+    tasks = data.get("tasks")
+    model = data.get("model", "gpt-4o")
+    userid = data.get("userid", "paradigm-shift-job-results")
+
+    # Validate inputs
+    if not jobId:
+        raise HTTPException(status_code=400, detail="Missing jobId")
+    if not tasks:
+        raise HTTPException(status_code=400, detail="Missing tasks")
+
+    # Ensure tasks are a valid JSON string
+    try:
+        tasks_json = str(tasks).replace("'", "\"")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid task format: {e}")
+
+    # Prepare command for subprocess
+    cmd = [
+        "xvfb-run", "python", "app/agents/browseruse.py",
+        "--jobId", jobId,
+        "--tasks", tasks_json,
+        "--user", userid
+    ]
+
+    # Initialize logs
+    deployments[userid] = []
+
+    async def run_subprocess():
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if process.stdout is not None:
+            async for line in process.stdout:
+                deployments[userid].append(line.strip())
+        await process.wait()
+        deployments[userid].append("[DONE]")
+
+    # Run the subprocess in the background
+    asyncio.create_task(run_subprocess())
+    return {"message": f"Job {jobId} started for user {userid}"}
+
+@app.post("/generate/screenshots")
+async def generateScreenshots(request: Request):
+    """
+    Main processing function to extract frames from video based on JSONL events.
+    
+    Args:
+        video_file: Path to the video file
+        jsonl_file: Path to the JSONL event log file
+        output_dir: Directory to save extracted frames
+    """
+    data = await request.json()
+    video_file = data.get("video_file")
+    jsonl_file = data.get("jsonl_file")
+    output_dir = data.get("output_dir")
+    if not video_file or not jsonl_file or not output_dir:
+        raise HTTPException(status_code=400, detail="Missing required parameters")
+    # Extract timestamps from the JSONL file
+    timestamp_extractor = TimestampExtractor()
+    timestamps = timestamp_extractor.extract_click_timestamps('https://tfhdpjj64gxkl56c.public.blob.vercel-storage.com/cm97y7sbn0000zd0wpqieuc6j/cm9qi2sx50008x60w2n4mxtks/events.jsonl')
+    
+
+    if not timestamps:
+        print("No valid timestamps found in the JSONL file")
+        return
+        
+    # Extract frames at the identified timestamps using context manager
+    # to ensure proper resource cleanup
+    with VideoFrameExtractor(video_file, output_dir) as frame_extractor:
+        frame_extractor.extract_frames(timestamps)
+    
+    zip_path = f"{output_dir}.zip"
+    shutil.make_archive(output_dir, 'zip', output_dir)
+    
+    # Return the zip file as a response
+    return FileResponse(zip_path, media_type='application/zip', filename=f"{os.path.basename(zip_path)}")
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host=os.getenv('HOST'), port=int(os.getenv('PORT')), ssl_keyfile="/home/ashwin/key.pem", ssl_certfile="/home/ashwin/cert.pem")
+    uvicorn.run(app, host=os.getenv('HOST', '127.0.0.1'), port=int(os.getenv('PORT', 8000)), ssl_keyfile="/etc/letsencrypt/live/infra.paradigm-shift.ai/privkey.pem", ssl_certfile="/etc/letsencrypt/live/infra.paradigm-shift.ai/fullchain.pem")
