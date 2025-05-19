@@ -123,9 +123,9 @@ async def web(request: Request):
         )
         if process.stdout is not None:
             async for line in process.stdout:
-                deployments[userid].append(clean_log(line.decode().strip()))
+                deployments[jobId].append(clean_log(line.decode().strip()))
         await process.wait()
-        deployments[userid].append("[DONE]")
+        deployments[jobId].append("[DONE]")
 
     # Run the subprocess in the background
     asyncio.create_task(run_subprocess())
