@@ -9,7 +9,6 @@ from utils.destroy import destroy_terraform_command
 from utils.run import job
 from dotenv import load_dotenv
 from screenshot.generate import TimestampExtractor, VideoFrameExtractor
-from agents.browseruse import BrowserAgent
 
 load_dotenv()
 
@@ -113,7 +112,7 @@ async def web(request: Request):
     ]
 
     # Initialize logs
-    deployments[userid] = []
+    deployments[jobId] = []
 
     async def run_subprocess():
         process = await asyncio.create_subprocess_exec(
@@ -149,7 +148,7 @@ async def generateScreenshots(request: Request):
         raise HTTPException(status_code=400, detail="Missing required parameters")
     # Extract timestamps from the JSONL file
     timestamp_extractor = TimestampExtractor()
-    timestamps = timestamp_extractor.extract_click_timestamps('https://tfhdpjj64gxkl56c.public.blob.vercel-storage.com/cm97y7sbn0000zd0wpqieuc6j/cm9qi2sx50008x60w2n4mxtks/events.jsonl')
+    timestamps = timestamp_extractor.extract_click_timestamps(jsonl_file)
     
 
     if not timestamps:

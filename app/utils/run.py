@@ -27,14 +27,14 @@ def job(userid: str, deployments: dict):
 
         print("Terraform apply command started.")
         # Stream logs
-        for line in iter(process.stdout.readline, ''):
-            clean_line = clean_log(line)
-            print(line)
-            if clean_line:  # Only log non-empty lines
-                deployments[userid].append(clean_line)
-            time.sleep(0.1)
-
-        process.stdout.close()
+        if process.stdout:
+            for line in iter(process.stdout.readline, ''):
+                clean_line = clean_log(line)
+                print(line)
+                if clean_line:  # Only log non-empty lines
+                    deployments[userid].append(clean_line)
+                time.sleep(0.1)
+            process.stdout.close()
         process.wait()
 
         # Append success message and signal completion

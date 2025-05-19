@@ -85,6 +85,8 @@ def zip_and_upload_to_gcs(files_to_zip, result_data, bucket_name, destination_bl
         url = f"gs://{bucket_name}/{destination_blob_name}"
         
         print(f"Zip file uploaded to {url}")
+        os.rmdir(temp_zip_path)
+        os.rmdir(files_to_zip)
         return url
         
     finally:
@@ -140,10 +142,12 @@ async def BrowserAgent(tasks: list[dict[str, str]], bucket_name: str, jobId: str
     screenshot_files = []
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     zip_name = f"{userid}/{jobId}_result_{timestamp}.zip"
+    if browser is None:
+        return
     try:
         for i, task in enumerate(tasks):
             agent = Agent(
-                browser=browser,
+                browser=browser.browser,
                 task=task["task"],
                 llm=llm,
                 use_vision=False
