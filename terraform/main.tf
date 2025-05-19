@@ -117,7 +117,7 @@ def run():
         # Send POST request to notify completion
         try:
             print("Sending completion notification...")
-            response = requests.post('https://127.0.0.1/destroy', json={"userid": "1234"}, verify=False)
+            response = requests.post('https://infra.paradigm-shift.ai:8000/destroy', json={"userid": "1234"}, verify=False)
             print(f"Notification sent. Status code: {response.status_code}")
         except Exception as e:
             print(f"Failed to send completion notification: {e}")

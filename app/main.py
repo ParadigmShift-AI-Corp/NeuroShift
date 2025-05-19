@@ -113,7 +113,7 @@ async def web(request: Request):
     ]
 
     # Initialize logs
-    deployments[userid] = []
+    deployments[jobId] = []
 
     async def run_subprocess():
         process = await asyncio.create_subprocess_exec(

@@ -23,16 +23,19 @@ def destroy_terraform_command(userid: str, deployments: dict):
             text=True
         )
 
-        for line in iter(process.stdout.readline, ''):
-            # Save logs to a global dictionary
-            print(clean_log(line))
-            deployments[userid].append(clean_log(line))
-            time.sleep(0.1)
+        if process.stdout is not None:
+            for line in iter(process.stdout.readline, ''):
+                # Save logs to a global dictionary
+                deployments[userid].append(clean_log(line))
+                time.sleep(0.1)
+        else:
+            deployments[userid].append("Error: process.stdout is None\n")
 
         subprocess.run(f"terraform workspace select default", shell=True, cwd=base_dir, capture_output=True, text=True)
         subprocess.run(f"terraform workspace delete {userid}", shell=True, cwd=base_dir, capture_output=True, text=True)
 
-        process.stdout.close()
+        if process.stdout is not None:
+            process.stdout.close()
         process.wait()
 
         if process.returncode != 0:
