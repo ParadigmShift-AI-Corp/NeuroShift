@@ -8,8 +8,9 @@ import json
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_anthropic import ChatAnthropic
 from browser_use import Agent
-from browser_use import Browser
+from browser_use import BrowserSession
 import argparse
 from pydantic import SecretStr
 
@@ -138,7 +139,11 @@ async def BrowserAgent(tasks: list[dict[str, str]], bucket_name: str, jobId: str
     # Create an Agent to perform the browser task
     all_results = []
     db = firestore.Client(database=os.getenv('FIRESTORE_DB', ''))
-    browser = Browser()
+    browser = BrowserSession(
+        headless=True, # type: ignore
+        viewport={'width': 964, 'height': 647}, # type: ignore
+        user_data_dir='~/.config/browseruse/profiles/default', # type: ignore
+    )
     screenshot_files = []
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     zip_name = f"{userid}/{jobId}_result_{timestamp}.zip"
@@ -147,9 +152,9 @@ async def BrowserAgent(tasks: list[dict[str, str]], bucket_name: str, jobId: str
     try:
         for i, task in enumerate(tasks):
             agent = Agent(
-                browser=browser.browser,
+                browser_session=browser,
                 task=task["task"],
-                llm=llm,
+                llm=getLLM(model),
                 use_vision=False
             )
     
@@ -186,6 +191,60 @@ async def BrowserAgent(tasks: list[dict[str, str]], bucket_name: str, jobId: str
     except Exception as e:
         print(f"Error uploading to Google Cloud Storage: {e}")
 
+def getLLM(model: str):
+    match str(model):
+        case 'gemini-2.0-flash':
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-2.0-flash",
+                temperature=0,
+                max_tokens=None,
+                timeout=None,
+                max_retries=2,
+                api_key=SecretStr(os.getenv("GOOGLE_API_KEY", ''))
+                # other params...
+            )
+        case 'gemini-2.5-pro':
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-2.5-pro",
+                temperature=0,
+                max_tokens=None,
+                timeout=None,
+                max_retries=2,
+                api_key=SecretStr(os.getenv("GOOGLE_API_KEY", ''))
+                # other params...
+            )
+        case 'gpt-4o':
+            llm = ChatOpenAI(model='gpt-4o', api_key=SecretStr(openai_api_key_value))
+        case 'gpt-o1':
+            llm = ChatOpenAI(model='gpt-o1', api_key=SecretStr(openai_api_key_value))
+        case 'gpt-o3':
+            llm = ChatOpenAI(model='gpt-o3', api_key=SecretStr(openai_api_key_value))
+        case 'claude-3.7':
+            llm = ChatAnthropic(
+                model_name="claude-3.7",
+                api_key=SecretStr(os.getenv("ANTHROPIC_API_KEY", "")),
+                timeout=None,
+                stop=None
+            )
+        case 'claude-4':
+            llm = ChatAnthropic(
+                model_name="claude-4",
+                api_key=SecretStr(os.getenv("ANTHROPIC_API_KEY", "")),
+                timeout=None,
+                stop=None
+            )
+        case _:
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-2.0-flash",
+                temperature=0,
+                max_tokens=None,
+                timeout=None,
+                max_retries=2,
+                api_key=SecretStr(os.getenv("GOOGLE_API_KEY", ''))
+                # other params...
+            )
+    return llm                
+
 if __name__ == "__main__":
     # Replace with your actual bucket name
     # Initialize LLM
@@ -194,23 +253,13 @@ if __name__ == "__main__":
     openai_api_key_value = os.getenv(OPENAI_API_KEY, '')
     BUCKET_NAME = os.getenv("BUCKET_NAME", '')
     # llm = ChatOpenAI(model=MODEL, api_key=SecretStr(openai_api_key_value))
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        temperature=0,
-        max_tokens=None,
-        timeout=None,
-        max_retries=2,
-        api_key=SecretStr(os.getenv("GOOGLE_API_KEY", ''))
-    # other params...
-    )
     parser = argparse.ArgumentParser(description="Run BrowserAgent with given parameters.")
     parser.add_argument("--jobId", required=True, help="Unique job ID")
     parser.add_argument("--tasks", required=True, help="Tasks in JSON format (e.g., '[{\"taskId\": \"1\", \"task\": \"goto netflix.com\"}]')")
     parser.add_argument("--user", required=True, help="unique user id")
+    parser.add_argument("--model", type=str, required=False, help="Model used to run the agent to successful execution")
 
-    
-
-    args = parser.parse_args()
+    args = parser.parse_args()        
 
     # Parse tasks from JSON string
     try:

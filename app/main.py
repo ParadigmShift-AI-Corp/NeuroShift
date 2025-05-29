@@ -94,7 +94,7 @@ async def web(request: Request):
     data = await request.json()
     jobId = data.get("jobId")
     tasks = data.get("tasks")
-    model = data.get("model", "gpt-4o")
+    model = data.get("aiModel", "gpt-4o")
     userid = data.get("userid", "paradigm-shift-job-results")
 
     # Validate inputs
@@ -105,14 +105,16 @@ async def web(request: Request):
 
     # Prepare command for subprocess
     cmd = [
-        "xvfb-run", "python", "app/agents/browseruse.py",
+        "xvfb-run", "python", "agents/browseruse.py",
         "--jobId", jobId,
         "--tasks", tasks,
-        "--user", userid
+        "--user", userid,
+        "--model", model
     ]
 
     # Initialize logs
     deployments[jobId] = []
+    print(cmd)
 
     async def run_subprocess():
         process = await asyncio.create_subprocess_exec(
@@ -169,4 +171,4 @@ async def generateScreenshots(request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host=os.getenv('HOST', '127.0.0.1'), port=int(os.getenv('PORT', 8000)), ssl_keyfile="/etc/letsencrypt/live/infra.paradigm-shift.ai/privkey.pem", ssl_certfile="/etc/letsencrypt/live/infra.paradigm-shift.ai/fullchain.pem")
+    uvicorn.run(app, host=os.getenv('HOST', '0.0.0.0'), port=int(os.getenv('PORT', 8000)), ssl_keyfile="/etc/letsencrypt/live/infra.paradigm-shift.ai/privkey.pem", ssl_certfile="/etc/letsencrypt/live/infra.paradigm-shift.ai/fullchain.pem")
