@@ -192,9 +192,9 @@ def getLLM(model: str):
                 api_key=SecretStr(os.getenv("GOOGLE_API_KEY", ''))
                 # other params...
             )
-        case 'gemini-2.5-pro':
+        case 'gemini-2.5-pro-exp-03-25':
             llm = ChatGoogleGenerativeAI(
-                model="gemini-2.5-pro",
+                model="gemini-2.5-pro-exp-03-25",
                 temperature=0,
                 max_tokens=None,
                 timeout=None,
@@ -208,16 +208,16 @@ def getLLM(model: str):
             llm = ChatOpenAI(model='gpt-o1', api_key=SecretStr(openai_api_key_value))
         case 'gpt-o3':
             llm = ChatOpenAI(model='gpt-o3', api_key=SecretStr(openai_api_key_value))
-        case 'claude-3.7':
+        case 'claude-opus-4-20250514':
             llm = ChatAnthropic(
-                model_name="claude-3.7",
+                model_name="claude-opus-4-20250514",
                 api_key=SecretStr(os.getenv("ANTHROPIC_API_KEY", "")),
                 timeout=None,
                 stop=None
             )
-        case 'claude-4':
+        case 'claude-3-7-sonnet-latest':
             llm = ChatAnthropic(
-                model_name="claude-4",
+                model_name="claude-3-7-sonnet-latest",
                 api_key=SecretStr(os.getenv("ANTHROPIC_API_KEY", "")),
                 timeout=None,
                 stop=None
