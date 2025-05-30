@@ -105,7 +105,7 @@ async def web(request: Request):
 
     # Prepare command for subprocess
     cmd = [
-        "xvfb-run", "python", "agents/browseruse.py",
+        "xvfb-run", "python", "app/agents/browseruse.py",
         "--jobId", jobId,
         "--tasks", tasks,
         "--user", userid,
@@ -122,8 +122,10 @@ async def web(request: Request):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        print('running', process.pid)
         if process.stdout is not None:
             async for line in process.stdout:
+                print(clean_log(line.decode().strip()))
                 deployments[jobId].append(clean_log(line.decode().strip()))
         await process.wait()
         deployments[jobId].append("[DONE]")

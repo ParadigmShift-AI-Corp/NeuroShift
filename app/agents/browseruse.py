@@ -248,6 +248,7 @@ def getLLM(model: str):
 if __name__ == "__main__":
     # Replace with your actual bucket name
     # Initialize LLM
+    print("started Running")
     MODEL="gpt-4o"
     OPENAI_API_KEY = "OPENAI_API_KEY"
     openai_api_key_value = os.getenv(OPENAI_API_KEY, '')
