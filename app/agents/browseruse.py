@@ -34,68 +34,56 @@ def zip_and_upload_to_gcs(files_to_zip, result_data, bucket_name, destination_bl
     
     Args:
         files_to_zip (list): List of file paths to be zipped
-        result_data (str/dict): Result data to include in the zip
+        result_data (str or dict): Result data to include in the zip
         bucket_name (str): Name of the GCS bucket
         destination_blob_name (str): Name for the zip file in the bucket
         
     Returns:
         str: Public URL of the uploaded zip file
     """
-    # Create a temporary file for the zip
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as temp_zip:
-        temp_zip_path = temp_zip.name
-    
-    # Create a temporary file for the result data
+    temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+    temp_zip_path = temp_zip.name
+    temp_zip.close()
+
     temp_result_path = tempfile.mktemp(suffix='.json')
-    # Write result data to a JSON file in text mode
     with open(temp_result_path, 'w', encoding='utf-8') as temp_result:
         if isinstance(result_data, str):
             temp_result.write(result_data)
         else:
             json.dump(result_data, temp_result, indent=2, default=str)
-    
-    # Create the zip file
-    with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        # Add screenshot files to the zip
-        for file_path in files_to_zip:
-            # Check if file exists
-            if not os.path.exists(file_path):
-                raise FileNotFoundError(f"File not found: {file_path}")
-            
-            # Add file to the zip (using just the filename, not the full path)
-            filename = os.path.basename(file_path)
-            zip_file.write(file_path, f"{file_path}/{filename}")
-        
-        # Add result data to the zip
-        zip_file.write(temp_result_path, "result.json")
-    
+
     try:
-        # Initialize GCS client
+        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file_path in files_to_zip:
+                if not os.path.exists(file_path):
+                    raise FileNotFoundError(f"File not found: {file_path}")
+                zip_file.write(file_path, arcname=os.path.basename(file_path))
+            
+            zip_file.write(temp_result_path, arcname='result.json')
+
+        # Upload to GCS
         storage_client = storage.Client()
-        
-        # Get bucket
         bucket = storage_client.bucket(bucket_name)
-        
-        # Create blob (object) in the bucket
         blob = bucket.blob(destination_blob_name)
-        
-        # Upload the zip file
         blob.upload_from_filename(temp_zip_path)
-        
-        # Get the public URL
-        url = f"gs://{bucket_name}/{destination_blob_name}"
-        
-        print(f"Zip file uploaded to {url}")
-        os.rmdir(temp_zip_path)
-        os.rmdir(files_to_zip)
-        return url
-        
+
+        gcs_url = f"gs://{bucket_name}/{destination_blob_name}"
+        print(f"Zip file uploaded to {gcs_url}")
+
+        # Clean up the original files
+        for file_path in files_to_zip:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+        return gcs_url
+
     finally:
-        # Clean up the temporary files
+        # Clean up temp files
         if os.path.exists(temp_zip_path):
-            os.unlink(temp_zip_path)
+            os.remove(temp_zip_path)
         if os.path.exists(temp_result_path):
-            os.unlink(temp_result_path)
+            os.remove(temp_result_path)
+
 
 def generate_screenshot_files(result_json: dict, taskId: str, model: str) -> list[str]:
     os.makedirs(taskId, exist_ok=True)
@@ -192,6 +180,7 @@ async def BrowserAgent(tasks: list[dict[str, str]], bucket_name: str, jobId: str
         print(f"Error uploading to Google Cloud Storage: {e}")
 
 def getLLM(model: str):
+    print(model)
     match str(model):
         case 'gemini-2.0-flash':
             llm = ChatGoogleGenerativeAI(
@@ -283,6 +272,6 @@ if __name__ == "__main__":
         tasks=tasks,
         bucket_name=BUCKET_NAME,
         jobId=args.jobId,
-        model=MODEL,
+        model=args.model,
         userid=args.user
     ))

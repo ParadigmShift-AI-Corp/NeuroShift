@@ -94,7 +94,7 @@ async def web(request: Request):
     data = await request.json()
     jobId = data.get("jobId")
     tasks = data.get("tasks")
-    model = data.get("aiModel", "gpt-4o")
+    model = data.get("model", "gpt-4o")
     userid = data.get("userid", "paradigm-shift-job-results")
 
     # Validate inputs
