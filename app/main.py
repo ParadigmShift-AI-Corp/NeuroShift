@@ -1,18 +1,23 @@
-from asyncio import subprocess
-import shutil
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-import asyncio, os, threading
-from utils.clean_log import clean_log
-from utils.destroy import destroy_terraform_command
-from utils.run import job
+import asyncio, os
 from dotenv import load_dotenv
-from screenshot.generate import TimestampExtractor, VideoFrameExtractor
+import redis
+from screenshot.generate import router as ScreenshotRouter
+from tasks.evaluation import run_browser_task
+from kombu.exceptions import OperationalError
+from utils.status import router as StatusRouter
+from utils.logs import router as LogRouter
+import time
 
 load_dotenv()
 
 app = FastAPI()
+app.include_router(ScreenshotRouter)
+app.include_router(StatusRouter)
+app.include_router(LogRouter)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,58 +25,6 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
-
-deployments = {}
-
-@app.post("/deploy")
-async def deploy(request: Request):
-    data = await request.json()
-    userid = data.get("userid")
-    if not userid:
-        raise HTTPException(status_code=400, detail="Missing userid")
-
-    # Start the deployment in a separate thread
-    deployments[userid] = []
-    threading.Thread(target=job, args=(userid, deployments,)).start()
-    return {"message": "Deployment started"}
-
-@app.get("/logs/{userid}")
-async def stream_logs(userid: str):
-    async def log_generator():
-        while True:
-            log = None  # Initialize log with a default value
-            if userid in deployments and deployments[userid]:
-                while deployments[userid]:
-                    log = deployments[userid].pop(0)
-                    yield f"data: {log}\n\n"
-                # Stop sending logs when done
-                if log == "[DONE]":
-                    break
-            await asyncio.sleep(0.1)
-
-    return StreamingResponse(log_generator(), media_type="text/event-stream")
-
-@app.post("/destroy")
-async def destroy(request: Request):
-    data = await request.json()
-    userid = data.get("userid")
-    if not userid:
-        raise HTTPException(status_code=400, detail="Missing userid")
-
-    deployments[userid] = []
-    threading.Thread(target=destroy_terraform_command, args=(userid, deployments,)).start()
-    
-    return {"message": "Destroy started"}
-
-@app.post("/show")
-async def show(request: Request):
-    data = await request.json()
-    userid = data.get("userid")
-    if not userid:
-        raise HTTPException(status_code=400, detail="Missing userid")
-    
-    output = job("terraform show", userid)
-    return {"status": "show", "output": output}
 
 @app.get("/health")
 async def health_check():
@@ -91,84 +44,36 @@ async def stream():
 
 @app.post("/webrun")
 async def web(request: Request):
-    data = await request.json()
-    jobId = data.get("jobId")
+    redis_client = redis.Redis(host='10.115.18.147')
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    job_id = data.get("jobId")
     tasks = data.get("tasks")
     model = data.get("model", "gpt-4o")
-    userid = data.get("userid", "paradigm-shift-job-results")
+    user_id = data.get("userid", "paradigm-shift-job-results")
 
-    # Validate inputs
-    if not jobId:
+    if not job_id:
         raise HTTPException(status_code=400, detail="Missing jobId")
     if not tasks:
         raise HTTPException(status_code=400, detail="Missing tasks")
+    print('starting to run')
 
-    # Prepare command for subprocess
-    cmd = [
-        "xvfb-run", "python", "app/agents/browseruse.py",
-        "--jobId", jobId,
-        "--tasks", tasks,
-        "--user", userid,
-        "--model", model
-    ]
-
-    # Initialize logs
-    deployments[jobId] = []
-    print(cmd)
-
-    async def run_subprocess():
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        print('running', process.pid)
-        if process.stdout is not None:
-            async for line in process.stdout:
-                print(clean_log(line.decode().strip()))
-                deployments[jobId].append(clean_log(line.decode().strip()))
-        await process.wait()
-        deployments[jobId].append("[DONE]")
-
-    # Run the subprocess in the background
-    asyncio.create_task(run_subprocess())
-    return {"message": f"Job {jobId} started for user {userid}"}
-
-@app.post("/generate/screenshots")
-async def generateScreenshots(request: Request):
-    """
-    Main processing function to extract frames from video based on JSONL events.
-    
-    Args:
-        video_file: Path to the video file
-        jsonl_file: Path to the JSONL event log file
-        output_dir: Directory to save extracted frames
-    """
-    data = await request.json()
-    video_file = data.get("video_file")
-    jsonl_file = data.get("jsonl_file")
-    output_dir = data.get("output_dir")
-    if not video_file or not jsonl_file or not output_dir:
-        raise HTTPException(status_code=400, detail="Missing required parameters")
-    # Extract timestamps from the JSONL file
-    timestamp_extractor = TimestampExtractor()
-    timestamps = timestamp_extractor.extract_click_timestamps(jsonl_file)
-    
-
-    if not timestamps:
-        print("No valid timestamps found in the JSONL file")
-        return
-        
-    # Extract frames at the identified timestamps using context manager
-    # to ensure proper resource cleanup
-    with VideoFrameExtractor(video_file, output_dir) as frame_extractor:
-        frame_extractor.extract_frames(timestamps)
-    
-    zip_path = f"{output_dir}.zip"
-    shutil.make_archive(output_dir, 'zip', output_dir)
-    
-    # Return the zip file as a response
-    return FileResponse(zip_path, media_type='application/zip', filename=f"{os.path.basename(zip_path)}")
+    # Trigger background task with Celery
+    time.sleep(5)
+    redis_client.set(f"status:{job_id}", "QUEUED")
+    redis_client.publish(f"status:{job_id}", "QUEUED")
+    print(redis_client.get(f"status:{job_id}"))
+    redis_client.close()
+    try:
+        run_browser_task.delay(job_id, tasks, model, user_id) # type: ignore untyped
+        print(f'Job Started for {job_id}')
+        return {"message": f"Job {job_id} started for user {user_id}"}
+    except OperationalError as e:
+        print(f"[ERROR] celery connection error: {str(e)}")
+        return {'message': f"[ERROR] celery connection error: {str(e)}"}
 
 
 if __name__ == "__main__":

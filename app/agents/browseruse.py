@@ -180,7 +180,6 @@ async def BrowserAgent(tasks: list[dict[str, str]], bucket_name: str, jobId: str
         print(f"Error uploading to Google Cloud Storage: {e}")
 
 def getLLM(model: str):
-    print(model)
     match str(model):
         case 'gemini-2.0-flash':
             llm = ChatGoogleGenerativeAI(
@@ -203,11 +202,11 @@ def getLLM(model: str):
                 # other params...
             )
         case 'gpt-4o':
-            llm = ChatOpenAI(model='gpt-4o', api_key=SecretStr(openai_api_key_value))
+            llm = ChatOpenAI(model='gpt-4o', api_key=SecretStr(os.getenv("OPENAI_API_KEY", '')))
         case 'gpt-o1':
-            llm = ChatOpenAI(model='gpt-o1', api_key=SecretStr(openai_api_key_value))
+            llm = ChatOpenAI(model='gpt-o1', api_key=SecretStr(os.getenv("OPENAI_API_KEY", '')))
         case 'gpt-o3':
-            llm = ChatOpenAI(model='gpt-o3', api_key=SecretStr(openai_api_key_value))
+            llm = ChatOpenAI(model='gpt-o3', api_key=SecretStr(os.getenv("OPENAI_API_KEY", '')))
         case 'claude-opus-4-20250514':
             llm = ChatAnthropic(
                 model_name="claude-opus-4-20250514",
@@ -235,14 +234,7 @@ def getLLM(model: str):
     return llm                
 
 if __name__ == "__main__":
-    # Replace with your actual bucket name
-    # Initialize LLM
-    print("started Running")
-    MODEL="gpt-4o"
-    OPENAI_API_KEY = "OPENAI_API_KEY"
-    openai_api_key_value = os.getenv(OPENAI_API_KEY, '')
-    BUCKET_NAME = os.getenv("BUCKET_NAME", '')
-    # llm = ChatOpenAI(model=MODEL, api_key=SecretStr(openai_api_key_value))
+    
     parser = argparse.ArgumentParser(description="Run BrowserAgent with given parameters.")
     parser.add_argument("--jobId", required=True, help="Unique job ID")
     parser.add_argument("--tasks", required=True, help="Tasks in JSON format (e.g., '[{\"taskId\": \"1\", \"task\": \"goto netflix.com\"}]')")
@@ -261,16 +253,15 @@ if __name__ == "__main__":
     # Run the browser agent
     """asyncio.run(BrowserAgent(
         tasks=[{"taskId": "1", "task": "goto netflix.com"}, {"taskId": "2","task": "goto google.com"}],
-        bucket_name=BUCKET_NAME,
+        bucket_name=os.getenv("BUCKET_NAME", ''),
         jobId="Test_Job",
         model="gpt-4o",
         userid="Test User"
     ))"""
-    # print(args.tasks)
 
     asyncio.run(BrowserAgent(
         tasks=tasks,
-        bucket_name=BUCKET_NAME,
+        bucket_name=os.getenv("BUCKET_NAME", ''),
         jobId=args.jobId,
         model=args.model,
         userid=args.user

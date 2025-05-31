@@ -4,13 +4,18 @@ Video Frame Extractor - Extracts frames from videos at timestamps recorded in a 
 """
 
 import argparse
+import shutil
 import cv2
 import json
 import logging
 import os
 from typing import List, Optional
 
+from fastapi import HTTPException, Request, APIRouter
+from fastapi.responses import FileResponse
 import requests
+
+router = APIRouter()
 
 
 class TimestampExtractor:
@@ -267,8 +272,7 @@ def main():
         logging.info(f"Setting OpenCV memory limit to {args.memory_limit}MB")
         # Convert MB to bytes for cv2
         cv2.setUseOptimized(True)
-        if hasattr(cv2, 'setBufferPoolUsage'):  # Only in newer OpenCV versions
-            cv2.setBufferPoolUsage(True)
+        # Removed cv2.setBufferPoolUsage(True) as it does not exist in cv2
         
     logging.info(f"Processing video: {args.video}")
     logging.info(f"Using events from: {args.jsonl}")
@@ -288,6 +292,42 @@ def main():
         gc.collect()
         
     return 0
+
+@router.post("/generate/screenshots")
+async def generateScreenshots(request: Request):
+    """
+    Main processing function to extract frames from video based on JSONL events.
+    
+    Args:
+        video_file: Path to the video file
+        jsonl_file: Path to the JSONL event log file
+        output_dir: Directory to save extracted frames
+    """
+    data = await request.json()
+    video_file = data.get("video_file")
+    jsonl_file = data.get("jsonl_file")
+    output_dir = data.get("output_dir")
+    if not video_file or not jsonl_file or not output_dir:
+        raise HTTPException(status_code=400, detail="Missing required parameters")
+    # Extract timestamps from the JSONL file
+    timestamp_extractor = TimestampExtractor()
+    timestamps = timestamp_extractor.extract_click_timestamps(jsonl_file)
+    
+
+    if not timestamps:
+        print("No valid timestamps found in the JSONL file")
+        return
+        
+    # Extract frames at the identified timestamps using context manager
+    # to ensure proper resource cleanup
+    with VideoFrameExtractor(video_file, output_dir) as frame_extractor:
+        frame_extractor.extract_frames(timestamps)
+    
+    zip_path = f"{output_dir}.zip"
+    shutil.make_archive(output_dir, 'zip', output_dir)
+    
+    # Return the zip file as a response
+    return FileResponse(zip_path, media_type='application/zip', filename=f"{os.path.basename(zip_path)}")
 
 
 if __name__ == "__main__":
