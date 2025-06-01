@@ -191,9 +191,9 @@ def getLLM(model: str):
                 api_key=SecretStr(os.getenv("GOOGLE_API_KEY", ''))
                 # other params...
             )
-        case 'gemini-2.5-pro-exp-03-25':
+        case 'gemini-2.5-pro-preview-03-25':
             llm = ChatGoogleGenerativeAI(
-                model="gemini-2.5-pro-exp-03-25",
+                model="gemini-2.5-pro-preview-03-25",
                 temperature=0,
                 max_tokens=None,
                 timeout=None,

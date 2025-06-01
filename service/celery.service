@@ -1,0 +1,28 @@
+[Unit]
+Description=Celery Worker Service
+After=network.target
+
+[Service]
+Type=simple
+User=ashwin
+Group=ashwin
+
+# Path to your app root
+WorkingDirectory=/home/ashwin/NeuroShift/app
+
+# Export environment variables from the .env file
+EnvironmentFile=/home/ashwin/NeuroShift/.env
+
+# Activate venv and start Celery
+ExecStart=/bin/bash -c 'source /home/ashwin/NeuroShift/.venv/bin/activate && exec celery -A messages.celery_worker.celery_app worker --loglevel=debug'
+
+# Restart if it crashes
+Restart=always
+RestartSec=5
+
+# Optional: Output logs to journald
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
