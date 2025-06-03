@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 import redis.asyncio as aioredis
 import asyncio
+import httpx
 
 router = APIRouter()
 
@@ -50,3 +51,21 @@ async def status_stream(request: Request, job_id: str):
     }
 
     return StreamingResponse(event_streamer(), headers=headers)
+
+async def send_status_webhook(jobId: str, status: str):
+    url = "https://paradigm-shift.ai/api/webhook"  # Replace with your endpoint
+
+    data = {
+        "type": "job_status",  # Replace with actual type
+        "payload": {
+            "status": status,
+            "id": jobId
+        }
+    }
+
+    print(data)
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=data)
+        print(f"Status Code: {response.status_code}")
+        print(f"Response Body: {response.text}")

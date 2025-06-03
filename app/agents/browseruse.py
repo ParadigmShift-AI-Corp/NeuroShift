@@ -130,7 +130,7 @@ async def BrowserAgent(tasks: list[dict[str, str]], bucket_name: str, jobId: str
     browser = BrowserSession(
         headless=True, # type: ignore
         viewport={'width': 964, 'height': 647}, # type: ignore
-        user_data_dir='~/.config/browseruse/profiles/default', # type: ignore
+        user_data_dir=f'~/.config/browseruse/profiles/{jobId}', # type: ignore
     )
     screenshot_files = []
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -143,7 +143,10 @@ async def BrowserAgent(tasks: list[dict[str, str]], bucket_name: str, jobId: str
                 browser_session=browser,
                 task=task["task"],
                 llm=getLLM(model),
-                use_vision=False
+                use_vision=False,
+                override_system_message="""
+                    CAUTION: if hit with captcha more than two times, end executing the particular tasks and go to next task.
+                """
             )
     
             # Run the agent to get the result
@@ -181,9 +184,9 @@ async def BrowserAgent(tasks: list[dict[str, str]], bucket_name: str, jobId: str
 
 def getLLM(model: str):
     match str(model):
-        case 'gemini-2.0-flash':
+        case 'gemini-2.5-flash-preview-05-20':
             llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash-preview-05-20",
                 temperature=0,
                 max_tokens=None,
                 timeout=None,
@@ -191,9 +194,9 @@ def getLLM(model: str):
                 api_key=SecretStr(os.getenv("GOOGLE_API_KEY", ''))
                 # other params...
             )
-        case 'gemini-2.5-pro-preview-03-25':
+        case 'gemini-2.5-pro-preview-05-06':
             llm = ChatGoogleGenerativeAI(
-                model="gemini-2.5-pro-preview-03-25",
+                model="gemini-2.5-pro-preview-05-06",
                 temperature=0,
                 max_tokens=None,
                 timeout=None,
@@ -223,7 +226,7 @@ def getLLM(model: str):
             )
         case _:
             llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash-preview-05-20",
                 temperature=0,
                 max_tokens=None,
                 timeout=None,

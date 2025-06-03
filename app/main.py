@@ -9,6 +9,7 @@ from tasks.evaluation import run_browser_task
 from kombu.exceptions import OperationalError
 from utils.status import router as StatusRouter
 from utils.logs import router as LogRouter
+from utils.status import send_status_webhook
 import time
 
 load_dotenv()
@@ -65,7 +66,7 @@ async def web(request: Request):
     time.sleep(5)
     redis_client.set(f"status:{job_id}", "QUEUED")
     redis_client.publish(f"status:{job_id}", "QUEUED")
-    print(redis_client.get(f"status:{job_id}"))
+    await send_status_webhook(job_id, "QUEUED")
     redis_client.close()
     try:
         run_browser_task.delay(job_id, tasks, model, user_id) # type: ignore untyped
